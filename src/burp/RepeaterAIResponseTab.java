@@ -6,13 +6,15 @@ import java.awt.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import burp.OllamaClient;
 
 public class RepeaterAIResponseTab implements IMessageEditorTab {
     private final ExtensionState state;
     private final IMessageEditorController controller;
-    private final OllamaClient ollamaClient;
+    private final ProviderFactory providerFactory;
+    private LLMProvider activeProvider;
     private final PromptEngine promptEngine;
-    
+
     // ALL COMPONENTS DECLARED AS FIELDS
     private JPanel panel;
     private JTextArea promptArea;
@@ -45,12 +47,17 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
     public RepeaterAIResponseTab(ExtensionState state, IMessageEditorController controller) {
         this.state = state;
         this.controller = controller;
-        this.ollamaClient = new OllamaClient(state); // Each tab gets its own client
+        this.providerFactory = new ProviderFactory(state);
+        this.activeProvider = providerFactory.getActiveProvider(); // Each tab gets its own client
         this.promptEngine = new PromptEngine(state);
         
         initUI();
     }
     
+    private void refreshActiveProvider() {
+        this.activeProvider = providerFactory.getActiveProvider();
+    }
+
     private void initUI() {
         panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -95,7 +102,7 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
         clearButton = new JButton("Clear");
         clearButton.addActionListener(e -> clearResponse());
 
-        analyzeButton = new JButton("Analyze with Ollama");
+        analyzeButton = new JButton("Analyze with AI");
         analyzeButton.addActionListener(e -> analyzeResponse());
         
         cancelButton = new JButton("Cancel");
@@ -107,7 +114,9 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
             
             isCancelling = true;
             // Call the enhanced cancellation
-            ollamaClient.cancel();
+            if (activeProvider != null) {
+                activeProvider.cancel();
+            }
     
             // Show cancellation in progress
             cancelButton.setEnabled(false);
@@ -147,7 +156,7 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
         responseArea.setLineWrap(true);
         responseArea.setWrapStyleWord(true);
         responseArea.setFont(new Font("Monospaced", Font.PLAIN, 11));
-        responseArea.setText("Load a response and click 'Analyze with Ollama'");
+        responseArea.setText("Load a response and click 'Analyze with AI'");
         
         aiResponsePanel.add(new JScrollPane(responseArea), BorderLayout.CENTER);
         
@@ -163,7 +172,7 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
                 JOptionPane.QUESTION_MESSAGE);
         
             if (result == JOptionPane.YES_OPTION) {
-                responseArea.setText("Click 'Analyze with Ollama' to start analysis");
+                responseArea.setText("Click 'Analyze with AI' to start analysis");
                 // CLEAR SAVED STATE
                 savedLLMResponse = "";
                 savedPromptText = "";
@@ -201,7 +210,7 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
         // CRITICAL FIX: Reset button to enabled state for new messages
         SwingUtilities.invokeLater(() -> {
             analyzeButton.setEnabled(true);
-            analyzeButton.setText("Analyze with Ollama");
+            analyzeButton.setText("Analyze with AI");
         });
     }
 
@@ -222,9 +231,12 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
             return;
         }
 
+        // Refresh provider before use
+        refreshActiveProvider();
+
         // Check Ollama health
         state.getStdout().println("[RepeaterAIResponseTab] Checking Ollama health...");
-        if (!ollamaClient.checkHealth()) {
+        if (activeProvider == null || !activeProvider.checkHealth()) {
             state.getStdout().println("[RepeaterAIResponseTab] Ollama health check FAILED");
             responseArea.append("\n" + "=".repeat(60) + "\nERROR: Ollama disconnected\nEnsure Ollama is running at: " + 
                             state.getOllamaEndpoint() + "\n" + "=".repeat(60) + "\n");
@@ -259,7 +271,7 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
 
         // Check model availability
         state.getStdout().println("[RepeaterAIResponseTab] Checking model availability...");
-        if (!ollamaClient.isModelAvailable(model)) {
+        if (!activeProvider.isModelAvailable(model)) {
             state.getStdout().println("[RepeaterAIResponseTab] Model NOT available");
             responseArea.append("\n" + "=".repeat(60) + "\nERROR: Model not available: " + model + 
                             "\nRun: ollama pull " + model + "\n" + "=".repeat(60) + "\n");
@@ -267,7 +279,7 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
         }
         
         // Check model availability
-        if (!ollamaClient.isModelAvailable(model)) {
+        if (!activeProvider.isModelAvailable(model)) {
             responseArea.append("\n" + "=".repeat(60) + "\nERROR: Model not available: " + model + 
                            "\nRun: ollama pull " + model + "\n" + "=".repeat(60) + "\n");
             return;
@@ -309,7 +321,7 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
         state.getStdout().println("[RepeaterAIResponseTab] Calling ollamaClient.generateAsync()");
 
         // Create the callback
-        currentCallback = new OllamaClient.ResponseCallback() {
+        currentCallback = new LLMProvider.ResponseCallback() {
             @Override
             public void onSuccess(String response, long timeMs, int estimatedTokens) {
                 // Check if this callback is still valid for the current message
@@ -358,7 +370,6 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
             
             @Override
             public void onError(String error) {
-                // Check if this callback is still valid for the current message
                 if (!analysisId.startsWith(requestIdentifier)) return;
                 
                 final long errorTime = System.currentTimeMillis() - requestStartTime;
@@ -366,24 +377,27 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
                 
                 SwingUtilities.invokeLater(() -> {
                     if (analysisId.startsWith(requestIdentifier) && !isCancelling) {
-                        String separator = "=".repeat(60);
-                    
-                        String errorMsg = String.format(
-                            "\n%s\n" +
-                            "✗ ERROR (after %.2fs)\n" +
-                            "%s\n\n" +
-                            "Check Ollama at: %s\n" +
-                            "%s\n",
-                            separator,
-                            errorTimeSeconds,
-                            error, state.getOllamaEndpoint(),
-                            separator
-                        );
+                        String provider = activeProvider != null ? activeProvider.getProviderName() : "Unknown";
+                        String errorMsg;
+                        
+                        if (("OpenAI".equals(provider) || "Claude".equals(provider)) &&
+                            (error.toLowerCase().contains("connection") || 
+                             error.toLowerCase().contains("timeout") ||
+                             error.toLowerCase().contains("401") ||
+                             error.toLowerCase().contains("403"))) {
+                            errorMsg = String.format(
+                                "\n%s\n✗ UNABLE TO CONNECT TO %s\nError: %s\n\nPlease check your configuration settings\n%s\n",
+                                "=".repeat(60), provider.toUpperCase(), error, "=".repeat(60)
+                            );
+                        } else {
+                            errorMsg = String.format(
+                                "\n%s\n✗ ERROR (after %.2fs)\n%s\n\nCheck provider configuration\n%s\n",
+                                "=".repeat(60), errorTimeSeconds, error, "=".repeat(60)
+                            );
+                        }
                     
                         responseArea.append(errorMsg);
                         responseArea.setCaretPosition(responseArea.getDocument().getLength());
-                        
-                        // RESTORE UI STATE
                         resetUIState();
                     }
                 });
@@ -426,7 +440,7 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
         
         // Store the model and start the analysis
         currentModel = model;
-        ollamaClient.generateAsync(prompt, model, conversationContext, currentCallback);
+        activeProvider.generateAsync(prompt, model, conversationContext, currentCallback);
     }
 
     @Override
@@ -461,8 +475,8 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
             SwingUtilities.invokeLater(() -> {
                 if (content != null && content.length > 0) {
                     analyzeButton.setEnabled(true);
-                    analyzeButton.setText("Analyze with Ollama");
-                    responseArea.setText("Click 'Analyze with Ollama' to start analysis");
+                    analyzeButton.setText("Analyze with AI");
+                    responseArea.setText("Click 'Analyze with AI' to start analysis");
                 } else {
                     analyzeButton.setEnabled(false);
                     responseArea.setText("No response to analyze");
@@ -490,10 +504,10 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
                         // Only show default message if no saved response exists
                         String currentResponse = responseArea.getText();
                         if (currentResponse == null || currentResponse.trim().isEmpty() ||
-                            currentResponse.equals("Load a response and click 'Analyze with Ollama'") ||
+                            currentResponse.equals("Load a response and click 'Analyze with AI'") ||
                             currentResponse.equals("Response loaded") ||
-                            currentResponse.equals("Click 'Analyze with Ollama' to analyze")) {
-                            responseArea.setText("Click 'Analyze with Ollama' to analyze");
+                            currentResponse.equals("Click 'Analyze with AI' to analyze")) {
+                            responseArea.setText("Click 'Analyze with AI' to analyze");
                         }
                     }
                 } else {
@@ -509,7 +523,7 @@ public class RepeaterAIResponseTab implements IMessageEditorTab {
         currentCallback = null;
         
         analyzeButton.setEnabled(true);
-        analyzeButton.setText("Analyze with Ollama");
+        analyzeButton.setText("Analyze with AI");
         cancelButton.setEnabled(false);
         cancelButton.setText("Cancel");
         clearButton.setEnabled(true);

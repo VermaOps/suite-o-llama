@@ -24,6 +24,19 @@ public class ExtensionState {
     private boolean redactCookies = true;
     private String extensionVersion;
 
+    // External provider settings
+    private String activeProvider = "ollama";  // ollama, openai, claude
+    
+    // OpenAI settings
+    private String openAiApiKey = "";
+    private String openAiModel = "gpt-4";
+    private String openAiBaseUrl = "https://api.openai.com/v1";
+    
+    // Claude settings
+    private String claudeApiKey = "";
+    private String claudeModel = "claude-3-5-sonnet-20241022";
+    private String claudeBaseUrl = "https://api.anthropic.com/v1";
+
     // Saved prompts
     private Map<String, String> savedPrompts = new HashMap<>();
     
@@ -52,6 +65,15 @@ public class ExtensionState {
         maxContextSize = prefs.getInt("max_context_size", maxContextSize);
         redactAuthHeaders = prefs.getBoolean("redact_auth", redactAuthHeaders);
         redactCookies = prefs.getBoolean("redact_cookies", redactCookies);
+
+        // External provider settings
+        activeProvider = prefs.get("active_provider", "ollama");
+        openAiApiKey = prefs.get("openai_api_key", "");
+        openAiModel = prefs.get("openai_model", "gpt-4");
+        openAiBaseUrl = prefs.get("openai_base_url", "https://api.openai.com/v1");
+        claudeApiKey = prefs.get("claude_api_key", "");
+        claudeModel = prefs.get("claude_model", "claude-3-5-sonnet-20241022");
+        claudeBaseUrl = prefs.get("claude_base_url", "https://api.anthropic.com/v1");
     }
     
     public void saveSettings() {
@@ -64,6 +86,15 @@ public class ExtensionState {
         prefs.putBoolean("redact_auth", redactAuthHeaders);
         prefs.putBoolean("redact_cookies", redactCookies);
         prefs.put("extension_version", extensionVersion);
+        
+        // External provider settings
+        prefs.put("active_provider", activeProvider);
+        prefs.put("openai_api_key", openAiApiKey);
+        prefs.put("openai_model", openAiModel);
+        prefs.put("openai_base_url", openAiBaseUrl);
+        prefs.put("claude_api_key", claudeApiKey);
+        prefs.put("claude_model", claudeModel);
+        prefs.put("claude_base_url", claudeBaseUrl);
     }
     
     private void loadSavedPrompts() {
@@ -167,4 +198,24 @@ public class ExtensionState {
         this.extensionVersion = version;
         saveSettings(); // Persist version if needed
     }
+
+    // Provider selection
+    public String getActiveProvider() { return activeProvider; }
+    public void setActiveProvider(String provider) { this.activeProvider = provider; }
+    
+    // OpenAI getters/setters
+    public String getOpenAiApiKey() { return openAiApiKey; }
+    public void setOpenAiApiKey(String key) { this.openAiApiKey = key; }
+    public String getOpenAiModel() { return openAiModel; }
+    public void setOpenAiModel(String model) { this.openAiModel = model; }
+    public String getOpenAiBaseUrl() { return openAiBaseUrl; }
+    public void setOpenAiBaseUrl(String url) { this.openAiBaseUrl = url; }
+    
+    // Claude getters/setters
+    public String getClaudeApiKey() { return claudeApiKey; }
+    public void setClaudeApiKey(String key) { this.claudeApiKey = key; }
+    public String getClaudeModel() { return claudeModel; }
+    public void setClaudeModel(String model) { this.claudeModel = model; }
+    public String getClaudeBaseUrl() { return claudeBaseUrl; }
+    public void setClaudeBaseUrl(String url) { this.claudeBaseUrl = url; }
 }

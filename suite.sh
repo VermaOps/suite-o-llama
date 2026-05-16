@@ -1,17 +1,17 @@
 #!/bin/bash
-# Clean Build Script for Suite-o-llama v2.2.1 - UPDATED
-# Updated after removing HistoryAITab files (now 18 files total)
+# Clean Build Script for Suite-o-llama - UPDATED
+# Updated (now 23 files total)
 
 set -e
 
 echo "=========================================="
-echo "Suite-o-llama v2.2.1 Build Script - UPDATED"
+echo "Suite-o-llama Build Script - UPDATED"
 echo "=========================================="
 echo ""
 
 # Configuration
-BASE_DIR="/Users/berserkikun/Downloads"
-SRC_DIR="$BASE_DIR/src/burp"
+BASE_DIR="/Users/VermaOps/Downloads"
+SRC_DIR="$BASE_DIR/suite/src/burp"
 BUILD_DIR="$BASE_DIR/build"
 LIB_DIR="$BASE_DIR/lib"
 OUTPUT_JAR="$BASE_DIR/Suite-o-llama.jar"
@@ -19,10 +19,7 @@ JSON_VERSION="20240303"
 JSON_JAR="$LIB_DIR/json-$JSON_VERSION.jar"
 
 # Burp JAR location (macOS default)
-BURP_JAR="/Applications/Burp Suite Professional.app/Contents/Resources/app/burpsuite_pro.jar"
-if [ ! -f "$BURP_JAR" ]; then
-    BURP_JAR="/Applications/Burp Suite Community Edition.app/Contents/Resources/app/burpsuite_community.jar"
-fi
+BURP_JAR="/Applications/Burp Suite.app/Contents/Resources/app/burpsuite.jar"
 
 # Check if Burp JAR exists
 if [ ! -f "$BURP_JAR" ]; then
@@ -68,9 +65,9 @@ echo "  ✓ Found $JAVA_FILES_COUNT Java files"
 echo "  Files found:"
 ls "$SRC_DIR"/*.java | xargs basename -a | sort | column -c 80
 
-# All 18 required files for v2.2
+# All 23 required files
 echo ""
-echo "[3/8] Checking all 18 required files..."
+echo "[3/8] Checking all 23 required files..."
 
 CRITICAL_FILES=(
     # Core files
@@ -82,7 +79,7 @@ CRITICAL_FILES=(
     "PromptEngine.java"
     
     # UI Components
-    "SettingsTab.java"
+    "SettingsPanel.java"
     "RepeaterAITab.java"
     "RepeaterAIResponseTab.java"
     "PromptManagerDialog.java"
@@ -90,6 +87,13 @@ CRITICAL_FILES=(
     # Factories
     "ContextMenuFactory.java"
     "MessageEditorTabFactory.java"
+    "ProviderFactory.java"
+    
+    # Providers
+    "LLMProvider.java"
+    "OpenAIProvider.java"
+    "ClaudeProvider.java"
+    "ProviderType.java"
     
     # Support/Utility
     "AutocompleteContext.java"
@@ -100,7 +104,6 @@ CRITICAL_FILES=(
 
     # Session handler
     "ConversationSession.java"
-
 )
 
 echo "  Checking ${#CRITICAL_FILES[@]} required files:"
@@ -167,7 +170,7 @@ if [ ${#missing_files[@]} -gt 0 ]; then
         echo "  ✓ All required files accounted for"
     fi
 else
-    echo "  ✓ All 18 required files found"
+    echo "  ✓ All 23 required files found"
 fi
 
 # Create directories
@@ -287,10 +290,10 @@ echo "  JAR file: $OUTPUT_JAR"
 echo "  Size: $JAR_SIZE"
 echo "  Total classes: $CLASS_COUNT"
 echo ""
-echo "  v2.2 Core classes:"
+echo "  Core classes:"
 jar -tf "$OUTPUT_JAR" | grep -E "^(burp/TabManager|burp/UpdateChecker|burp/MainTabPanel)" | sed 's/^/    /' | sort
 echo ""
-echo "  All classes (18 files → ~$(($CLASS_COUNT)) classes):"
+echo "  All classes (23 files → ~$(($CLASS_COUNT)) classes):"
 jar -tf "$OUTPUT_JAR" | grep "^burp/.*\.class$" | sed 's/^/    /' | sort
 
 # Final check
@@ -305,7 +308,6 @@ echo "BUILD SUCCESSFUL! 🎉"
 echo "=========================================="
 echo ""
 echo "Output: $OUTPUT_JAR"
-echo "Version: v2.2.1"
 echo "Files compiled: $JAVA_FILES_COUNT"
 echo "Classes in JAR: $CLASS_COUNT"
 echo ""

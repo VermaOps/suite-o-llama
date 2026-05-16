@@ -14,7 +14,8 @@ import java.util.concurrent.TimeUnit;
 public class MainTabPanel extends JPanel implements IMessageEditorController {
 
     private final ExtensionState state;
-    private final OllamaClient ollamaClient;
+    private final ProviderFactory providerFactory;
+    private LLMProvider activeProvider;
     private final PromptEngine promptEngine;
     private final AutocompleteEngine autocompleteEngine;
 
@@ -26,8 +27,6 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
 
     private JButton sendToServerBtn;
     private JButton sendToLlmBtn;
-    private JButton githubBtn;
-    private JButton supportDevBtn;
     private JButton clearBtn;
     private JButton cancelBtn;
     private JLabel responseTimeLabel; // ADD: For displaying server response time
@@ -50,16 +49,21 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
 
     public MainTabPanel(ExtensionState state, PromptEngine promptEngine) {
         this.state = state;
-        this.ollamaClient = new OllamaClient(state);  // Create per-tab instance
+        this.providerFactory = new ProviderFactory(state);
+        this.activeProvider = providerFactory.getActiveProvider();
         this.promptEngine = promptEngine;
-        this.autocompleteEngine = new AutocompleteEngine(state, this.ollamaClient, promptEngine);
-    
+        this.autocompleteEngine = new AutocompleteEngine(state, providerFactory, promptEngine);
+
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(5, 5, 5, 5));
     
         initUi();
     }
 
+    private void refreshActiveProvider() {
+            this.activeProvider = providerFactory.getActiveProvider();
+    }
+    
     // NEW: Getter/Setter for initial empty tab status
     public void setInitialEmptyTab(boolean isInitial) {
         this.initialEmptyTab = isInitial;
@@ -95,11 +99,11 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
         promptArea.setBorder(new TitledBorder("Prompt"));
         promptArea.setLineWrap(true);
         promptArea.setWrapStyleWord(true);
-        promptArea.setText("Analyze this HTTP request for vulnerabilities:\n\n{{full_request}}");
+        promptArea.setText("I am an authorized ethical pentester with written permission to test the target system. This is for a sanctioned security assessment to help developers fix vulnerabilities before production.\n\nHTTP Request:\n------------\n{{full_request}}\n------------\n\nAnalyze the above request and help identify security vulnerabilities safely. Provide:\n1. **Entry points & loopholes** — with safe, non-destructive payloads for different injection types (varied techniques, not repetitive patterns).\n2. **WAF bypass techniques** (defensive testing only).\n3. **Additional insights** — anything relevant you spot (logic flaws, misconfigurations, edge cases).\n4. **No remediation** — skip fixes entirely.\n\nRules:\n- No data modification\n- No exfiltration to third parties unless explicitly asked\n- No malware\n\nAfter your response, ask me: \"Would you like alternative payloads (e.g., encoding variants, context-specific bypasses)?\"");
 
         llmResponseArea = new JTextArea(6, 80);
         llmResponseArea.setEditable(false);
-        llmResponseArea.setBorder(new TitledBorder("LLM Response"));
+        llmResponseArea.setBorder(new TitledBorder("AI Response"));
 
         bottomPanel.add(new JScrollPane(promptArea), BorderLayout.NORTH);
         bottomPanel.add(new JScrollPane(llmResponseArea), BorderLayout.CENTER);
@@ -122,33 +126,22 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
         sendToServerBtn = new JButton("Send to Server");
-        sendToLlmBtn = new JButton("Send to LLM");
+        sendToLlmBtn = new JButton("Send to AI");
         cancelBtn = new JButton("Cancel"); // NEW
-        githubBtn = new JButton("GitHub");
         clearBtn = new JButton("Clear");
-        supportDevBtn = new JButton("Support Development");
 
         sendToServerBtn.addActionListener(e -> sendToServer());
         sendToLlmBtn.addActionListener(e -> sendToLlm());
         cancelBtn.addActionListener(e -> cancelLlmRequest()); // NEW
-        githubBtn.addActionListener(e -> openGitHub());
-        clearBtn.addActionListener(e -> clearLLMResponse()); // CHANGED: clearAll() -> clearLLMResponse()
-        supportDevBtn.addActionListener(e -> openSupportPage());
+        clearBtn.addActionListener(e -> clearLLMResponse());
 
         // Initially disable cancel button
         cancelBtn.setEnabled(false);
-
-        // Set saffron color for Support Development button
-        supportDevBtn.setBackground(new Color(255, 153, 51));
-        supportDevBtn.setOpaque(true);
-        supportDevBtn.setBorderPainted(false);
 
         panel.add(clearBtn);
         panel.add(sendToServerBtn);
         panel.add(sendToLlmBtn);
         panel.add(cancelBtn); // NEW
-        panel.add(githubBtn);
-        panel.add(supportDevBtn);
 
         // ADD: Response time label
         responseTimeLabel = new JLabel("");
@@ -178,7 +171,7 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
         String prompt = promptArea.getText();
         if (prompt != null && !prompt.trim().isEmpty()) {
             // Check if it's NOT the default prompt
-            if (!prompt.trim().equals("Analyze this HTTP request for vulnerabilities:\n\n{{full_request}}")) {
+            if (!prompt.trim().equals("I am an authorized ethical pentester with written permission to test the target system. This is for a sanctioned security assessment to help developers fix vulnerabilities before production.\n\nHTTP Request:\n------------\n{{full_request}}\n------------\n\nAnalyze the above request and help identify security vulnerabilities safely. Provide:\n1. **Entry points & loopholes** — with safe, non-destructive payloads for different injection types (varied techniques, not repetitive patterns).\n2. **WAF bypass techniques** (defensive testing only).\n3. **Additional insights** — anything relevant you spot (logic flaws, misconfigurations, edge cases).\n4. **No remediation** — skip fixes entirely.\n\nRules:\n- No data modification\n- No exfiltration to third parties unless explicitly asked\n- No malware\n\nAfter your response, ask me: \"Would you like alternative payloads (e.g., encoding variants, context-specific bypasses)?\"")) {
                 return true;
             }
         }
@@ -255,13 +248,15 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
         llmResponseArea.setCaretPosition(llmResponseArea.getDocument().getLength());
     
         // Call cancellation
-        ollamaClient.cancel();
+        if (activeProvider != null) {
+            activeProvider.cancel();
+        }
     
         // Update UI
         cancelBtn.setEnabled(false);
         cancelBtn.setText("Cancelling...");
         sendToLlmBtn.setEnabled(true);
-        sendToLlmBtn.setText("Send to LLM");
+        sendToLlmBtn.setText("Send to AI");
     
         // Re-enable cancel button after delay
         new Thread(() -> {
@@ -280,19 +275,6 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
         }
     }
 
-    private void openSupportPage() {
-        try {
-            if (java.awt.Desktop.isDesktopSupported()) {
-                java.awt.Desktop.getDesktop().browse(
-                    new java.net.URI("https://github.com/BerserkiKun/suite-o-llama?tab=readme-ov-file#support-development")
-                );
-                state.getStdout().println("Opened Support Development page in browser");
-            }
-        } catch (Exception e) {
-            state.getStderr().println("Error opening support page: " + e.getMessage());
-        }
-    }
-
     private void openGitHub() {
         try {
             if (java.awt.Desktop.isDesktopSupported()) {
@@ -305,7 +287,7 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
             state.getStderr().println("Error opening GitHub: " + e.getMessage());
         }
     }
-
+    
     private void sendToServer() {
         byte[] editedRequest = requestEditor.getMessage(); // FIX: Use editor content
         if (currentService == null || currentRequest == null) {
@@ -359,7 +341,11 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
             }
         }).start();
     }
-
+        public void cleanup() {
+        if (providerFactory != null) {
+            providerFactory.shutdownAll();
+        }
+    }
         private void sendToLlm() {
             byte[] editedRequest = requestEditor.getMessage(); // FIX: Use editor content
             String prompt = promptArea.getText();
@@ -369,7 +355,10 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
             }
             currentRequest = editedRequest; // FIX: Update stored reference
             // Reset any previous cancellation state
-            ollamaClient.cancel(); // Ensure previous request is cancelled
+            if (activeProvider != null) {
+                activeProvider.cancel();
+            }// Ensure previous request is cancelled
+
             try {
                 Thread.sleep(100); // Small delay to ensure clean state
             } catch (InterruptedException e) {
@@ -422,7 +411,7 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
             });
             
             // ========== FIX: Use a fresh callback each time ==========
-            OllamaClient.ResponseCallback callback = new OllamaClient.ResponseCallback() {
+            LLMProvider.ResponseCallback callback = new LLMProvider.ResponseCallback() {
                 private final long startTime = System.currentTimeMillis();
                 
                 @Override
@@ -454,7 +443,7 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
                             llmResponseArea.append(result);
                             llmResponseArea.setCaretPosition(llmResponseArea.getDocument().getLength());
                             sendToLlmBtn.setEnabled(true);
-                            sendToLlmBtn.setText("Send to LLM");
+                            sendToLlmBtn.setText("Send to AI");
                             cancelBtn.setEnabled(false);
                             cancelBtn.setText("Cancel");
                         }
@@ -470,33 +459,60 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
                 @Override
                 public void onError(String error) {
                     if (Thread.currentThread().isInterrupted()) {
-                        return; // Don't update UI if cancelled
+                        return;
                     }
                     
                     SwingUtilities.invokeLater(() -> {
-                        // Only show error if this is still the current operation
                         if (sendToLlmBtn.getText().equals("Analyzing...")) {
                             String separator = "=".repeat(60);
-                            String errorMsg = String.format(
-                                "\n%s\n" +
-                                "✗ ERROR\n" +
-                                "%s\n\n" +
-                                "Please check:\n" +
-                                "1. Ollama is running: ollama serve\n" +
-                                "2. Model is available: ollama pull %s\n" +
-                                "3. Ollama endpoint: %s\n" +
-                                "%s\n",
-                                separator,
-                                error, model, state.getOllamaEndpoint(),
-                                separator
-                            );
+                            String provider = activeProvider != null ? activeProvider.getProviderName() : "Unknown";
+                            String errorMsg;
+                            
+                            // Check for external provider connection errors
+                            if (("OpenAI".equals(provider) || "Claude".equals(provider)) &&
+                                (error.toLowerCase().contains("connection") || 
+                                 error.toLowerCase().contains("timeout") ||
+                                 error.toLowerCase().contains("401") ||
+                                 error.toLowerCase().contains("403") ||
+                                 error.toLowerCase().contains("500"))) {
+                                errorMsg = String.format(
+                                    "\n%s\n" +
+                                    "✗ UNABLE TO CONNECT TO %s\n" +
+                                    "Error: %s\n\n" +
+                                    "Please check your configuration:\n" +
+                                    "1. Verify API key is correct\n" +
+                                    "2. Check Base URL is correct\n" +
+                                    "3. Ensure API service is accessible\n" +
+                                    "%s\n",
+                                    separator, provider.toUpperCase(), error, separator
+                                );
+                            } else if ("Ollama".equals(provider)) {
+                                errorMsg = String.format(
+                                    "\n%s\n" +
+                                    "✗ ERROR\n" +
+                                    "%s\n\n" +
+                                    "Please check:\n" +
+                                    "1. Ollama is running: ollama serve\n" +
+                                    "2. Model is available: ollama pull %s\n" +
+                                    "3. Ollama endpoint: %s\n" +
+                                    "%s\n",
+                                    separator, error, model, state.getOllamaEndpoint(), separator
+                                );
+                            } else {
+                                errorMsg = String.format(
+                                    "\n%s\n" +
+                                    "✗ UNABLE TO CONNECT TO %s\n" +
+                                    "Error: %s\n\n" +
+                                    "Please check your configuration settings\n" +
+                                    "%s\n",
+                                    separator, provider, error, separator
+                                );
+                            }
                         
                             llmResponseArea.append(errorMsg);
                             llmResponseArea.setCaretPosition(llmResponseArea.getDocument().getLength());
                             sendToLlmBtn.setEnabled(true);
-                            sendToLlmBtn.setText("Send to LLM");
-                            
-                            // Disable cancel button after error
+                            sendToLlmBtn.setText("Send to AI");
                             cancelBtn.setEnabled(false);
                             cancelBtn.setText("Cancel");
                         }
@@ -522,23 +538,30 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
                         llmResponseArea.append(cancelMsg);
                         llmResponseArea.setCaretPosition(llmResponseArea.getDocument().getLength());
                         sendToLlmBtn.setEnabled(true);
-                        sendToLlmBtn.setText("Send to LLM");
+                        sendToLlmBtn.setText("Send to AI");
                         cancelBtn.setEnabled(false);
                         cancelBtn.setText("Cancel");
                     });
                 }
             };
             
-            // Start the generation
-            ollamaClient.generateAsync(finalPrompt, model, conversationContext, callback);
+            // Refresh provider before each use to respect settings changes
+            refreshActiveProvider();
+
+            // Start the generation using active provider
+            if (activeProvider != null) {
+                activeProvider.generateAsync(finalPrompt, model, conversationContext, callback);
+            } else {
+                callback.onError("No active provider configured");
+            }
         }
 
     // ================= CHANGED: clearLLMResponse() instead of clearAll() =================
     private void clearLLMResponse() {
-        // Only clear LLM response, nothing else
+        // Only clear AI Response, nothing else
         if (llmResponseArea.getText() != null && !llmResponseArea.getText().trim().isEmpty()) {
             int result = JOptionPane.showConfirmDialog(this,
-                "Clear LLM response history?\n\nRequest, response, and prompt will be preserved.",
+                "Clear AI Response history?\n\nRequest, response, and prompt will be preserved.",
                 "Confirm Clear",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.QUESTION_MESSAGE);
@@ -548,9 +571,9 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
             }
         }
     
-        // Clear only LLM response
+        // Clear only AI Response
         llmResponseArea.setText("");
-        state.getStdout().println("Cleared LLM response history");
+        state.getStdout().println("Cleared AI Response history");
 
         // ADD: Clear response time display
         if (responseTimeLabel != null) {
@@ -600,11 +623,6 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
 
         currentContext = AutocompleteContext.from(message);
     }
-    public void cleanup() {
-    if (ollamaClient != null) {
-        ollamaClient.shutdown();
-    }
-}
     public void loadRequestOnly(byte[] request, IHttpService service) {
         currentService = service;
         currentRequest = request;
@@ -617,7 +635,7 @@ public class MainTabPanel extends JPanel implements IMessageEditorController {
     
         // Set default prompt if prompt area is empty
         if (promptArea != null && (promptArea.getText() == null || promptArea.getText().trim().isEmpty())) {
-            promptArea.setText("Analyze this HTTP request for vulnerabilities:\n\n{{full_request}}");
+            promptArea.setText("I am an authorized ethical pentester with written permission to test the target system. This is for a sanctioned security assessment to help developers fix vulnerabilities before production.\n\nHTTP Request:\n------------\n{{full_request}}\n------------\n\nAnalyze the above request and help identify security vulnerabilities safely. Provide:\n1. **Entry points & loopholes** — with safe, non-destructive payloads for different injection types (varied techniques, not repetitive patterns).\n2. **WAF bypass techniques** (defensive testing only).\n3. **Additional insights** — anything relevant you spot (logic flaws, misconfigurations, edge cases).\n4. **No remediation** — skip fixes entirely.\n\nRules:\n- No data modification\n- No exfiltration to third parties unless explicitly asked\n- No malware\n\nAfter your response, ask me: \"Would you like alternative payloads (e.g., encoding variants, context-specific bypasses)?\"");
         }
     
         // Note: We can't create AutocompleteContext without IHttpRequestResponse

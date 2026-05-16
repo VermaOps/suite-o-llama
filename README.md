@@ -1,5 +1,5 @@
 [![Burp Suite Extension](https://img.shields.io/badge/Burp%20Suite-Extension-orange)](https://portswigger.net/burp)
-[![Version](https://img.shields.io/badge/Version-2.2.1-blue)](https://github.com/VermaOps/suite-o-llama/releases)
+[![Version](https://img.shields.io/badge/Version-2.2.1-blue)](https://github.com/BerserkiKun/suite-o-llama/releases)
 [![Ollama](https://img.shields.io/badge/Ollama-Required-yellow)](https://ollama.com)
 
 # Suite-o-llama: AI-Powered Burp Suite Extension for Penetration Testing
@@ -169,7 +169,7 @@ Suite-o-llama is pre-configured with two specialized Ollama models optimized for
 
 ### Method 1: Pre-compiled Installation recommended
 
-1. **Download**: Get stable release of `suite-o-llama.jar` from the [Releases page](https://github.com/VermaOps/suite-o-llama/releases)
+1. **Download**: Get stable release of `suite-o-llama.jar` from the [Releases page](https://github.com/BerserkiKun/suite-o-llama/releases)
 2. **Install in Burp**:
    ```bash
    Burp Suite → Extender → Extensions
@@ -188,7 +188,7 @@ For custom modifications:
 
 1. **Clone Repository**: 
    ```bash
-   git clone https://github.com/VermaOps/suite-o-llama.git
+   git clone https://github.com/berserkikun/suite-o-llama.git
    cd suite-o-llama
 
 2. **Modify Files**:
@@ -289,7 +289,7 @@ Your support helps maintain the project and add new features.
 Found a bug? Have a feature request?
 - **Bug Reports**: Include Burp version, Ollama version, and reproduction steps
 - **Feature Requests**: Describe use case and expected behavior
-- **Security Issues**: Report privately on Discord DM - @VermaOps
+- **Security Issues**: Report privately on Discord DM - @BerserkiKun
  
 ## Community & Feedback
 
@@ -299,11 +299,11 @@ Community feedback is welcome. The local-first design ensures you can use Suite-
 
 <div align="center">
 
-**Built with ❤️ by [VermaOps](https://github.com/VermaOps)**
+**Built with ❤️ by [BerserkiKun](https://github.com/berserkikun)**
 
-[![GitHub Stars](https://img.shields.io/github/stars/VermaOps/suite-o-llama?style=social)](https://github.com/VermaOps/suite-o-llama/stargazers)
-[![GitHub Issues](https://img.shields.io/github/issues/VermaOps/suite-o-llama)](https://github.com/VermaOps/suite-o-llama/issues)
-[![GitHub Forks](https://img.shields.io/github/forks/VermaOps/suite-o-llama?style=social)](https://github.com/VermaOps/suite-o-llama/network/members)
+[![GitHub Stars](https://img.shields.io/github/stars/berserkikun/suite-o-llama?style=social)](https://github.com/berserkikun/suite-o-llama/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/berserkikun/suite-o-llama)](https://github.com/berserkikun/suite-o-llama/issues)
+[![GitHub Forks](https://img.shields.io/github/forks/berserkikun/suite-o-llama?style=social)](https://github.com/berserkikun/suite-o-llama/network/members)
 
 **⭐ Star this repo if you find it useful!**
 

@@ -22,7 +22,7 @@ public class UpdateChecker {
             JSONObject result = new JSONObject();
             
             try {
-                URL url = new URL("https://api.github.com/repos/BerserkiKun/suite-o-llama/releases/latest");
+                URL url = new URL("https://api.github.com/repos/VermaOps/suite-o-llama/releases/latest");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/vnd.github.v3+json");
@@ -120,7 +120,7 @@ public class UpdateChecker {
      */
     public JSONObject getLatestReleaseInfo() {
         try {
-            URL url = new URL("https://api.github.com/repos/BerserkiKun/suite-o-llama/releases/latest");
+            URL url = new URL("https://api.github.com/repos/VermaOps/suite-o-llama/releases/latest");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/vnd.github.v3+json");

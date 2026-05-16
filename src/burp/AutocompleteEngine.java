@@ -1,19 +1,22 @@
 package burp;
 
 import java.util.concurrent.*;
+import burp.LLMProvider;
 
 public class AutocompleteEngine {
     private final ExtensionState state;
-    private final OllamaClient ollamaClient;
+    private final ProviderFactory providerFactory;
+    private LLMProvider activeProvider;
     private final PromptEngine promptEngine;
     private final ExecutorService executor;
     private final ConcurrentHashMap<String, String[]> cache;
     private final Semaphore rateLimiter;
     
-    public AutocompleteEngine(ExtensionState state, OllamaClient ollamaClient, 
+    public AutocompleteEngine(ExtensionState state, ProviderFactory providerFactory, 
                             PromptEngine promptEngine) {
         this.state = state;
-        this.ollamaClient = ollamaClient;
+        this.providerFactory = providerFactory;
+        this.activeProvider = providerFactory.getActiveProvider();
         this.promptEngine = promptEngine;
         this.executor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r);
@@ -68,8 +71,45 @@ public class AutocompleteEngine {
             
             // Trim prompt to avoid bloat
             prompt = ContextTrimmer.trim(prompt, 500);
+            activeProvider = providerFactory.getActiveProvider();
+            String response = null;
+            // Use synchronous generation - create a temporary callback
+            final String[] result = new String[1];
+            final Exception[] error = new Exception[1];
+            final Object lock = new Object();
             
-            String response = ollamaClient.generate(prompt, state.getPayloadModel());
+            activeProvider.generateAsync(prompt, state.getPayloadModel(), null, new LLMProvider.ResponseCallback() {
+                @Override
+                public void onSuccess(String resp, long timeMs, int tokens) {
+                    synchronized (lock) {
+                        result[0] = resp;
+                        lock.notify();
+                    }
+                }
+                @Override
+                public void onError(String err) {
+                    synchronized (lock) {
+                        error[0] = new Exception(err);
+                        lock.notify();
+                    }
+                }
+                @Override
+                public void onCancelled(long cancelTimeMs) {
+                    synchronized (lock) {
+                        error[0] = new Exception("Cancelled");
+                        lock.notify();
+                    }
+                }
+            });
+            
+            synchronized (lock) {
+                lock.wait(30000); // 30 second timeout
+            }
+            
+            if (error[0] != null) {
+                throw error[0];
+            }
+            response = result[0];
             
             // Parse response into individual payloads
             return parsePayloads(response);

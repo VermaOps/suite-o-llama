@@ -333,7 +333,7 @@ If Suite-o-llama helps your security testing, consider supporting its developmen
 **Star the Repository**: Show your support by starring the project on GitHub!
 
 **Support Links**:
-- 💰 **PayPal**: [PayPal](https://www.paypal.com/ncp/payment/7Y3836GETVF94)
+- 💰 **PayPal**: [PayPal](https://www.paypal.com/ncp/payment/JDYFC8VULDC2G)
 
 Your support helps maintain the project and add new features.
 

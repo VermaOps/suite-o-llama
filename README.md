@@ -343,7 +343,7 @@ Your support helps maintain the project and add new features.
 Found a bug? Have a feature request?
 - **Bug Reports**: Include Burp version, Ollama version, and reproduction steps
 - **Feature Requests**: Describe use case and expected behavior
-- **Security Issues**: Report privately on Discord DM - @VermaOps
+- **Security Issues**: Report privately on LinkedIn DM
  
 ## Community & Feedback
 

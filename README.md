@@ -144,7 +144,7 @@ Suite-o-llama is pre-configured with two specialized Ollama models optimized for
 - One-click model refresh from Settings panel
 - Model switching between analysis/payload modes
 
-## Local LLM Architecture
+## Architecture
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    Burp Suite Professional                  │
